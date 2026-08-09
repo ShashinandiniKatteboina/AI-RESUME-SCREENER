@@ -7,4 +7,4 @@ load_dotenv()
 client = MongoClient(os.getenv("MONGO_URI"))
 
 db = client["resume_screening_db"]
-print("Connected to MongoDB successfully!")
+print("✅ Connected to MongoDB")
