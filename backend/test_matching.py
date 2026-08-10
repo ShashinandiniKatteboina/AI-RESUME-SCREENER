@@ -1,8 +1,4 @@
-from services.matching_service import (
-    compare_skills,
-    calculate_match_score
-)
-
+from services.matching_service import generate_match_result
 
 resume = {
     "skills": {
@@ -43,22 +39,30 @@ job_skills = [
 ]
 
 
-result = compare_skills(resume, job_skills)
-score = calculate_match_score(
-    job_skills,
-    result["matched_skills"]
+result = generate_match_result(
+    resume,
+    job_skills
 )
 
-print("===== MATCHED SKILLS =====")
+print("\n===== MATCHING RESULT =====")
+
+print("Match Score:", result["match_score"], "%")
+
+print("\nMatched Skills:")
 
 for skill in result["matched_skills"]:
     print(skill)
 
-
-print("\n===== MISSING SKILLS =====")
+print("\nMissing Skills:")
 
 for skill in result["missing_skills"]:
     print(skill)
 
-print("\n===== MATCH SCORE =====")
-print(f"{score}%")
+print("\nTotal Required Skills:",
+      result["total_required_skills"])
+
+print("Total Matched Skills:",
+      result["total_matched_skills"])
+
+print("Total Missing Skills:",
+      result["total_missing_skills"])
