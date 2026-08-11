@@ -1,13 +1,12 @@
-from services.job_parser import extract_job_skills
+from services.skill_service import extract_skills
 
 
-def create_job(job_description):
+def process_job_description(description):
 
-    skills = extract_job_skills(job_description)
+    """
+    Extract required skills from a job description.
+    """
 
-    job = {
-        "description": job_description,
-        "required_skills": skills
-    }
+    required_skills = extract_skills(description)
 
-    return job
+    return required_skills

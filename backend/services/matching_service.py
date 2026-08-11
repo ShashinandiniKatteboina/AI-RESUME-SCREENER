@@ -107,6 +107,7 @@ def generate_match_result(resume, job_skills):
 
     matched_skills = comparison["matched_skills"]
     missing_skills = comparison["missing_skills"]
+    skill_gap = analyze_skill_gap(missing_skills)
 
     score = calculate_match_score(
         job_skills,
@@ -117,7 +118,55 @@ def generate_match_result(resume, job_skills):
         "match_score": score,
         "matched_skills": matched_skills,
         "missing_skills": missing_skills,
+        "skill_gap": skill_gap,
         "total_required_skills": len(job_skills),
         "total_matched_skills": len(matched_skills),
         "total_missing_skills": len(missing_skills)
+    }
+
+def analyze_skill_gap(missing_skills):
+
+    technical_keywords = {
+        "java",
+        "python",
+        "sql",
+        "c",
+        "c++",
+        "javascript",
+        "typescript",
+        "html",
+        "css",
+        "react",
+        "node.js",
+        "express.js",
+        "mongodb",
+        "postgresql",
+        "mysql",
+        "git",
+        "docker",
+        "kubernetes",
+        "aws",
+        "azure",
+        "gcp",
+        "rest api",
+        "rest apis",
+        "data structures",
+        "algorithms"
+    }
+
+    technical = []
+    soft = []
+
+    for skill in missing_skills:
+
+        normalized = normalize_skill(skill)
+
+        if normalized in technical_keywords:
+            technical.append(skill)
+        else:
+            soft.append(skill)
+
+    return {
+        "technical_skills": technical,
+        "soft_skills": soft
     }

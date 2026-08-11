@@ -93,6 +93,18 @@ print("\nMissing Skills:")
 for skill in result["missing_skills"]:
     print("❌", skill)
 
+print("\n===== SKILL GAP =====")
+
+print("Technical Skills:")
+
+for skill in result["skill_gap"]["technical_skills"]:
+    print("🔧", skill)
+
+print("Soft Skills:")
+
+for skill in result["skill_gap"]["soft_skills"]:
+    print("💬", skill)
+
 
 print(
     "\nTotal Required Skills:",
