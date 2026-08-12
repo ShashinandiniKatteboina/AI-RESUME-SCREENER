@@ -5,7 +5,6 @@ from werkzeug.security import (
     check_password_hash
 )
 
-
 # ============================================================
 # USERS COLLECTION
 # ============================================================
@@ -21,7 +20,9 @@ def create_user(user_data):
 
     password = user_data.get("password")
 
-    hashed_password = generate_password_hash(password)
+    hashed_password = generate_password_hash(
+        password
+    )
 
     user_document = {
         "name": user_data.get("name"),
@@ -29,7 +30,9 @@ def create_user(user_data):
         "password": hashed_password
     }
 
-    result = users_collection.insert_one(user_document)
+    result = users_collection.insert_one(
+        user_document
+    )
 
     return str(result.inserted_id)
 
@@ -72,7 +75,10 @@ def get_user_by_email(email):
 # VERIFY PASSWORD
 # ============================================================
 
-def verify_password(stored_password, entered_password):
+def verify_password(
+    stored_password,
+    entered_password
+):
 
     return check_password_hash(
         stored_password,

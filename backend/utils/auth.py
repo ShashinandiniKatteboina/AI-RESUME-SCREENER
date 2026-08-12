@@ -1,7 +1,15 @@
 from functools import wraps
+
 from flask import request, jsonify, current_app
+
 import jwt
 
+from database.user_repository import get_user_by_id
+
+
+# ============================================================
+# JWT TOKEN REQUIRED
+# ============================================================
 
 def token_required(f):
 
@@ -15,6 +23,7 @@ def token_required(f):
         auth_header = request.headers.get("Authorization")
 
         if not auth_header:
+
             return jsonify({
                 "error": "Authorization header is required"
             }), 401
@@ -25,7 +34,11 @@ def token_required(f):
 
         parts = auth_header.split()
 
-        if len(parts) != 2 or parts[0].lower() != "bearer":
+        if (
+            len(parts) != 2
+            or parts[0].lower() != "bearer"
+        ):
+
             return jsonify({
                 "error": "Authorization header must be Bearer <token>"
             }), 401
@@ -44,13 +57,6 @@ def token_required(f):
                 algorithms=["HS256"]
             )
 
-            # ------------------------------------------------
-            # Store logged-in user's information
-            # ------------------------------------------------
-
-            request.user_id = payload["user_id"]
-            request.user_email = payload.get("email")
-
         except jwt.ExpiredSignatureError:
 
             return jsonify({
@@ -64,7 +70,41 @@ def token_required(f):
             }), 401
 
         # ----------------------------------------------------
-        # Token valid → continue to route
+        # Get user ID from token
+        # ----------------------------------------------------
+
+        user_id = payload.get("user_id")
+
+        if not user_id:
+
+            return jsonify({
+                "error": "Invalid token payload"
+            }), 401
+
+        # ----------------------------------------------------
+        # Check whether user still exists
+        # ----------------------------------------------------
+
+        user = get_user_by_id(user_id)
+
+        if not user:
+
+            return jsonify({
+                "error": "User no longer exists"
+            }), 401
+
+        # ----------------------------------------------------
+        # Store authenticated user information
+        # ----------------------------------------------------
+
+        request.user_id = user_id
+
+        request.user_email = payload.get("email")
+
+        request.current_user = user
+
+        # ----------------------------------------------------
+        # Continue to requested route
         # ----------------------------------------------------
 
         return f(*args, **kwargs)

@@ -69,6 +69,14 @@ def add_user():
             "error": "password is required"
         }), 400
 
+    existing_user = get_user_by_email(email)
+
+    if existing_user:
+        return jsonify({
+            "error": "Email already registered"
+        }), 409
+    
+
     # --------------------------------------------------------
     # Create user
     # --------------------------------------------------------

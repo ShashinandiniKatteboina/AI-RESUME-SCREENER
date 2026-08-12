@@ -1,16 +1,27 @@
+
 from flask import Blueprint, request, jsonify
 
-from database.resume_repository import get_resume
-from database.job_repository import get_job
-
 from database.analysis_repository import (
-    save_analysis,
+    create_analysis,
     get_analysis,
-    get_analyses_by_resume
+    get_analyses_by_user
 )
 
-from services.analysis_service import analyze_resume
-from services.ai_service import generate_ai_analysis
+from database.resume_repository import (
+    get_resume
+)
+
+from database.job_repository import (
+    get_job
+)
+
+from services.matching_service import (
+    generate_match_result
+)
+
+from services.ai_service import (
+    generate_ai_analysis
+)
 
 from utils.auth import token_required
 
@@ -19,41 +30,61 @@ from utils.auth import token_required
 # BLUEPRINT
 # ============================================================
 
-analysis_bp = Blueprint("analysis", __name__)
+analysis_bp = Blueprint(
+    "analysis",
+    __name__
+)
 
 
 # ============================================================
 # CREATE ANALYSIS
 # ============================================================
 
-@analysis_bp.route("/analysis", methods=["POST"])
+@analysis_bp.route(
+    "/analysis",
+    methods=["POST"]
+)
 @token_required
-def create_analysis():
+def analyze_resume():
+
+    # --------------------------------------------------------
+    # Get logged-in user
+    # --------------------------------------------------------
+
+    user_id = request.user_id
+
+    # --------------------------------------------------------
+    # Get request data
+    # --------------------------------------------------------
 
     data = request.get_json()
 
     if not data:
+
         return jsonify({
             "error": "Request body is required"
         }), 400
 
-    resume_id = data.get("resume_id")
-    job_id = data.get("job_id")
+    # --------------------------------------------------------
+    # Get resume ID
+    # --------------------------------------------------------
 
-    # --------------------------------------------------------
-    # Validate resume ID
-    # --------------------------------------------------------
+    resume_id = data.get("resume_id")
 
     if not resume_id:
+
         return jsonify({
             "error": "resume_id is required"
         }), 400
 
     # --------------------------------------------------------
-    # Validate job ID
+    # Get job ID
     # --------------------------------------------------------
 
+    job_id = data.get("job_id")
+
     if not job_id:
+
         return jsonify({
             "error": "job_id is required"
         }), 400
@@ -62,9 +93,12 @@ def create_analysis():
     # Get resume
     # --------------------------------------------------------
 
-    resume = get_resume(resume_id)
+    resume = get_resume(
+        resume_id
+    )
 
     if not resume:
+
         return jsonify({
             "error": "Resume not found"
         }), 404
@@ -73,142 +107,217 @@ def create_analysis():
     # Check resume ownership
     # --------------------------------------------------------
 
-    if resume.get("user_id") != request.user_id:
+    if resume.get("user_id") != user_id:
 
         return jsonify({
-            "error": "You are not authorized to analyze this resume"
+            "error":
+                "You are not authorized to analyze this resume"
         }), 403
 
     # --------------------------------------------------------
     # Get job
     # --------------------------------------------------------
 
-    job = get_job(job_id)
+    job = get_job(
+        job_id
+    )
 
     if not job:
+
         return jsonify({
             "error": "Job not found"
         }), 404
 
     # --------------------------------------------------------
-    # Perform matching
+    # Get required skills
     # --------------------------------------------------------
 
-    analysis = analyze_resume(
-        resume,
-        job["description"],
-        job["required_skills"]
+    job_skills = job.get(
+        "required_skills",
+        []
     )
 
     # --------------------------------------------------------
-    # Generate Gemini AI analysis
+    # Generate rule-based matching result
+    # --------------------------------------------------------
+
+    match_result = generate_match_result(
+        resume,
+        job_skills
+    )
+
+    # --------------------------------------------------------
+    # Generate AI analysis
     # --------------------------------------------------------
 
     ai_analysis = generate_ai_analysis(
-        resume=resume,
-        job_description=job["description"],
-        match_score=analysis["match_score"],
-        matched_skills=analysis["matched_skills"],
-        missing_skills=analysis["missing_skills"]
+        resume,
+        job,
+        match_result
     )
 
     # --------------------------------------------------------
-    # Add AI analysis
+    # Create analysis document
     # --------------------------------------------------------
 
-    analysis["ai_analysis"] = ai_analysis
+    analysis_data = {
 
-    # --------------------------------------------------------
-    # Add IDs
-    # --------------------------------------------------------
-
-    analysis["resume_id"] = resume_id
-    analysis["job_id"] = job_id
-    analysis["user_id"] = request.user_id
-
-    # --------------------------------------------------------
-    # Save analysis
-    # --------------------------------------------------------
-
-    analysis_id = save_analysis(analysis)
-
-    # --------------------------------------------------------
-    # Response
-    # --------------------------------------------------------
-
-    return jsonify({
-
-        "message": "Analysis completed successfully",
-
-        "analysis_id": analysis_id,
+        "user_id": user_id,
 
         "resume_id": resume_id,
 
         "job_id": job_id,
 
-        "match_score": analysis["match_score"],
+        "job_description":
+            job.get(
+                "description",
+                ""
+            ),
 
-        "matched_skills": analysis["matched_skills"],
+        "required_skills":
+            job_skills,
 
-        "missing_skills": analysis["missing_skills"],
+        "match_score":
+            match_result.get(
+                "match_score",
+                0
+            ),
 
-        "skill_gap": analysis.get(
-            "skill_gap",
-            {}
-        ),
+        "matched_skills":
+            match_result.get(
+                "matched_skills",
+                []
+            ),
 
-        "ai_analysis": analysis["ai_analysis"]
+        "missing_skills":
+            match_result.get(
+                "missing_skills",
+                []
+            ),
+
+        "skill_gap":
+            match_result.get(
+                "skill_gap",
+                {}
+            ),
+
+        "total_required_skills":
+            match_result.get(
+                "total_required_skills",
+                0
+            ),
+
+        "total_matched_skills":
+            match_result.get(
+                "total_matched_skills",
+                0
+            ),
+
+        "total_missing_skills":
+            match_result.get(
+                "total_missing_skills",
+                0
+            ),
+
+        "ai_analysis":
+            ai_analysis
+    }
+
+    # --------------------------------------------------------
+    # Save analysis
+    # --------------------------------------------------------
+
+    analysis_id = create_analysis(
+        analysis_data
+    )
+
+    # --------------------------------------------------------
+    # Return result
+    # --------------------------------------------------------
+
+    return jsonify({
+
+        "message":
+            "Analysis completed successfully",
+
+        "analysis_id":
+            analysis_id,
+
+        "resume_id":
+            resume_id,
+
+        "job_id":
+            job_id,
+
+        "match_score":
+            match_result.get(
+                "match_score",
+                0
+            ),
+
+        "matched_skills":
+            match_result.get(
+                "matched_skills",
+                []
+            ),
+
+        "missing_skills":
+            match_result.get(
+                "missing_skills",
+                []
+            ),
+
+        "skill_gap":
+            match_result.get(
+                "skill_gap",
+                {}
+            ),
+
+        "ai_analysis":
+            ai_analysis
 
     }), 201
 
 
 # ============================================================
-# GET MY ANALYSIS HISTORY
+# GET MY ANALYSES
 # ============================================================
 
 @analysis_bp.route(
-    "/analysis/resume/<resume_id>",
+    "/analysis/my",
     methods=["GET"]
 )
 @token_required
-def get_resume_analysis_history(resume_id):
+def get_my_analyses():
 
     # --------------------------------------------------------
-    # Check resume exists
+    # Get logged-in user's ID
     # --------------------------------------------------------
 
-    resume = get_resume(resume_id)
-
-    if not resume:
-        return jsonify({
-            "error": "Resume not found"
-        }), 404
+    user_id = request.user_id
 
     # --------------------------------------------------------
-    # Check ownership
+    # Get user's analyses
     # --------------------------------------------------------
 
-    if resume.get("user_id") != request.user_id:
-
-        return jsonify({
-            "error": "You are not authorized to access this resume"
-        }), 403
+    analyses = get_analyses_by_user(
+        user_id
+    )
 
     # --------------------------------------------------------
-    # Get analyses
+    # Return analyses
     # --------------------------------------------------------
-
-    analyses = get_analyses_by_resume(resume_id)
 
     return jsonify({
 
-        "user_id": request.user_id,
+        "user_id":
+            user_id,
 
-        "resume_id": resume_id,
+        "total_analyses":
+            len(analyses),
 
-        "total_analyses": len(analyses),
-
-        "analyses": analyses
+        "analyses":
+            analyses
 
     }), 200
 
@@ -222,15 +331,26 @@ def get_resume_analysis_history(resume_id):
     methods=["GET"]
 )
 @token_required
-def get_single_analysis(analysis_id):
+def get_single_analysis(
+    analysis_id
+):
+
+    # --------------------------------------------------------
+    # Get logged-in user's ID
+    # --------------------------------------------------------
+
+    user_id = request.user_id
 
     # --------------------------------------------------------
     # Get analysis
     # --------------------------------------------------------
 
-    analysis = get_analysis(analysis_id)
+    analysis = get_analysis(
+        analysis_id
+    )
 
     if not analysis:
+
         return jsonify({
             "error": "Analysis not found"
         }), 404
@@ -239,10 +359,11 @@ def get_single_analysis(analysis_id):
     # Check ownership
     # --------------------------------------------------------
 
-    if analysis.get("user_id") != request.user_id:
+    if analysis.get("user_id") != user_id:
 
         return jsonify({
-            "error": "You are not authorized to access this analysis"
+            "error":
+                "You are not authorized to access this analysis"
         }), 403
 
     # --------------------------------------------------------
@@ -251,8 +372,10 @@ def get_single_analysis(analysis_id):
 
     return jsonify({
 
-        "message": "Analysis retrieved successfully",
+        "message":
+            "Analysis retrieved successfully",
 
-        "analysis": analysis
+        "analysis":
+            analysis
 
     }), 200

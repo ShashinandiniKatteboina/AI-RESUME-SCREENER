@@ -1,5 +1,5 @@
-from flask import Blueprint, request, jsonify
 
+from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 
 from services.pdf_service import extract_text_from_pdf
@@ -7,7 +7,8 @@ from services.pdf_service import extract_text_from_pdf
 from database.resume_repository import (
     save_resume,
     get_resume,
-    get_resumes_by_user
+    get_resumes_by_user,
+    delete_resume
 )
 
 from utils.auth import token_required
@@ -63,6 +64,7 @@ def upload_resume():
 
     user_id = request.user_id
 
+
     # --------------------------------------------------------
     # Check whether file was provided
     # --------------------------------------------------------
@@ -73,7 +75,9 @@ def upload_resume():
             "error": "No resume file provided"
         }), 400
 
+
     file = request.files["resume"]
+
 
     # --------------------------------------------------------
     # Check whether file was selected
@@ -85,6 +89,7 @@ def upload_resume():
             "error": "No file selected"
         }), 400
 
+
     # --------------------------------------------------------
     # Check file type
     # --------------------------------------------------------
@@ -95,11 +100,15 @@ def upload_resume():
             "error": "Only PDF files are allowed"
         }), 400
 
+
     # --------------------------------------------------------
     # Make filename safe
     # --------------------------------------------------------
 
-    filename = secure_filename(file.filename)
+    filename = secure_filename(
+        file.filename
+    )
+
 
     # --------------------------------------------------------
     # Create upload folder
@@ -110,6 +119,7 @@ def upload_resume():
         exist_ok=True
     )
 
+
     # --------------------------------------------------------
     # Create file path
     # --------------------------------------------------------
@@ -119,19 +129,33 @@ def upload_resume():
         filename
     )
 
+
     # --------------------------------------------------------
     # Save PDF
     # --------------------------------------------------------
 
-    file.save(file_path)
+    file.save(
+        file_path
+    )
+
 
     # --------------------------------------------------------
     # Extract text from PDF
     # --------------------------------------------------------
 
-    extracted_text = extract_text_from_pdf(
-        file_path
-    )
+    try:
+
+        extracted_text = extract_text_from_pdf(
+            file_path
+        )
+
+    except Exception as e:
+
+        return jsonify({
+            "error": "Failed to extract text from PDF",
+            "details": str(e)
+        }), 500
+
 
     # --------------------------------------------------------
     # Create resume document
@@ -146,13 +170,24 @@ def upload_resume():
         "text": extracted_text
     }
 
+
     # --------------------------------------------------------
     # Save resume to MongoDB
     # --------------------------------------------------------
 
-    resume_id = save_resume(
-        resume_data
-    )
+    try:
+
+        resume_id = save_resume(
+            resume_data
+        )
+
+    except Exception as e:
+
+        return jsonify({
+            "error": "Failed to save resume",
+            "details": str(e)
+        }), 500
+
 
     # --------------------------------------------------------
     # Return response
@@ -192,6 +227,7 @@ def get_my_resumes():
 
     user_id = request.user_id
 
+
     # --------------------------------------------------------
     # Get resumes belonging to this user
     # --------------------------------------------------------
@@ -199,6 +235,7 @@ def get_my_resumes():
     resumes = get_resumes_by_user(
         user_id
     )
+
 
     # --------------------------------------------------------
     # Return resumes
@@ -232,6 +269,7 @@ def get_single_resume(resume_id):
 
     user_id = request.user_id
 
+
     # --------------------------------------------------------
     # Get resume
     # --------------------------------------------------------
@@ -240,11 +278,17 @@ def get_single_resume(resume_id):
         resume_id
     )
 
+
+    # --------------------------------------------------------
+    # Resume not found
+    # --------------------------------------------------------
+
     if not resume:
 
         return jsonify({
             "error": "Resume not found"
         }), 404
+
 
     # --------------------------------------------------------
     # Check ownership
@@ -257,6 +301,7 @@ def get_single_resume(resume_id):
                 "You are not authorized to access this resume"
         }), 403
 
+
     # --------------------------------------------------------
     # Return resume
     # --------------------------------------------------------
@@ -268,5 +313,116 @@ def get_single_resume(resume_id):
 
         "resume":
             resume
+
+    }), 200
+
+
+# ============================================================
+# DELETE RESUME
+# ============================================================
+
+@resume_bp.route("/resumes/<resume_id>", methods=["DELETE"])
+@token_required
+def delete_single_resume(resume_id):
+
+    # --------------------------------------------------------
+    # Get logged-in user's ID
+    # --------------------------------------------------------
+
+    user_id = request.user_id
+
+
+    # --------------------------------------------------------
+    # Find resume
+    # --------------------------------------------------------
+
+    resume = get_resume(
+        resume_id
+    )
+
+
+    # --------------------------------------------------------
+    # Resume not found
+    # --------------------------------------------------------
+
+    if not resume:
+
+        return jsonify({
+            "error": "Resume not found"
+        }), 404
+
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if resume.get("user_id") != user_id:
+
+        return jsonify({
+            "error":
+                "You are not authorized to delete this resume"
+        }), 403
+
+
+    # --------------------------------------------------------
+    # Delete resume from MongoDB
+    # --------------------------------------------------------
+
+    deleted = delete_resume(
+        resume_id
+    )
+
+
+    # --------------------------------------------------------
+    # Check deletion result
+    # --------------------------------------------------------
+
+    if not deleted:
+
+        return jsonify({
+            "error":
+                "Failed to delete resume"
+        }), 500
+
+
+    # --------------------------------------------------------
+    # Delete physical PDF file
+    # --------------------------------------------------------
+
+    filename = resume.get(
+        "filename"
+    )
+
+    if filename:
+
+        file_path = os.path.join(
+            UPLOAD_FOLDER,
+            filename
+        )
+
+        if os.path.exists(file_path):
+
+            try:
+
+                os.remove(
+                    file_path
+                )
+
+            except Exception:
+
+                pass
+
+
+    # --------------------------------------------------------
+    # Return success
+    # --------------------------------------------------------
+
+    return jsonify({
+
+        "message":
+            "Resume deleted successfully",
+
+        "resume_id":
+            resume_id
 
     }), 200
