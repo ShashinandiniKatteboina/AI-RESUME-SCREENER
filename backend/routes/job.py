@@ -1,12 +1,15 @@
 from flask import Blueprint, request, jsonify
 
+from services.job_service import process_job_description
+
 from database.job_repository import (
     save_job,
     get_job,
-    get_all_jobs
+    get_all_jobs,
+    get_jobs_by_user
 )
 
-from services.job_service import process_job_description
+from utils.auth import token_required
 
 
 # ============================================================
@@ -21,6 +24,7 @@ job_bp = Blueprint("job", __name__)
 # ============================================================
 
 @job_bp.route("/jobs", methods=["POST"])
+@token_required
 def create_job():
 
     # --------------------------------------------------------
@@ -61,14 +65,12 @@ def create_job():
         }), 400
 
     # --------------------------------------------------------
-    # Extract skills automatically
+    # Extract required skills
     # --------------------------------------------------------
 
-    required_skills = process_job_description(description)
-
-    # --------------------------------------------------------
-    # Validate extracted skills
-    # --------------------------------------------------------
+    required_skills = process_job_description(
+        description
+    )
 
     if not isinstance(required_skills, list):
         return jsonify({
@@ -80,6 +82,7 @@ def create_job():
     # --------------------------------------------------------
 
     job_data = {
+        "user_id": request.user_id,
         "title": title,
         "company": company,
         "description": description,
@@ -87,7 +90,7 @@ def create_job():
     }
 
     # --------------------------------------------------------
-    # Save job to MongoDB
+    # Save job
     # --------------------------------------------------------
 
     job_id = save_job(job_data)
@@ -97,29 +100,43 @@ def create_job():
     # --------------------------------------------------------
 
     return jsonify({
+
         "message": "Job created successfully",
+
         "job_id": job_id,
+
+        "user_id": request.user_id,
+
         "job": {
             "title": title,
             "company": company,
             "description": description,
             "required_skills": required_skills
         }
+
     }), 201
 
 
 # ============================================================
-# GET ALL JOBS
+# GET MY JOBS
 # ============================================================
 
 @job_bp.route("/jobs", methods=["GET"])
+@token_required
 def get_jobs():
 
-    jobs = get_all_jobs()
+    jobs = get_jobs_by_user(
+        request.user_id
+    )
 
     return jsonify({
+
+        "user_id": request.user_id,
+
         "total_jobs": len(jobs),
+
         "jobs": jobs
+
     }), 200
 
 
@@ -128,6 +145,7 @@ def get_jobs():
 # ============================================================
 
 @job_bp.route("/jobs/<job_id>", methods=["GET"])
+@token_required
 def get_single_job(job_id):
 
     job = get_job(job_id)
@@ -137,7 +155,20 @@ def get_single_job(job_id):
             "error": "Job not found"
         }), 404
 
+    # --------------------------------------------------------
+    # Ownership check
+    # --------------------------------------------------------
+
+    if job.get("user_id") != request.user_id:
+
+        return jsonify({
+            "error": "You are not authorized to access this job"
+        }), 403
+
     return jsonify({
+
         "message": "Job retrieved successfully",
+
         "job": job
+
     }), 200

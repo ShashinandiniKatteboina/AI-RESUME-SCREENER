@@ -12,6 +12,8 @@ from database.analysis_repository import (
 from services.analysis_service import analyze_resume
 from services.ai_service import generate_ai_analysis
 
+from utils.auth import token_required
+
 
 # ============================================================
 # BLUEPRINT
@@ -25,11 +27,8 @@ analysis_bp = Blueprint("analysis", __name__)
 # ============================================================
 
 @analysis_bp.route("/analysis", methods=["POST"])
+@token_required
 def create_analysis():
-
-    # --------------------------------------------------------
-    # Get request data
-    # --------------------------------------------------------
 
     data = request.get_json()
 
@@ -60,7 +59,7 @@ def create_analysis():
         }), 400
 
     # --------------------------------------------------------
-    # Get resume from MongoDB
+    # Get resume
     # --------------------------------------------------------
 
     resume = get_resume(resume_id)
@@ -71,7 +70,17 @@ def create_analysis():
         }), 404
 
     # --------------------------------------------------------
-    # Get job from MongoDB
+    # Check resume ownership
+    # --------------------------------------------------------
+
+    if resume.get("user_id") != request.user_id:
+
+        return jsonify({
+            "error": "You are not authorized to analyze this resume"
+        }), 403
+
+    # --------------------------------------------------------
+    # Get job
     # --------------------------------------------------------
 
     job = get_job(job_id)
@@ -82,24 +91,13 @@ def create_analysis():
         }), 404
 
     # --------------------------------------------------------
-    # Check required skills
-    # --------------------------------------------------------
-
-    required_skills = job.get("required_skills", [])
-
-    if not required_skills:
-        return jsonify({
-            "error": "Job has no required skills"
-        }), 400
-
-    # --------------------------------------------------------
-    # Perform resume-job matching
+    # Perform matching
     # --------------------------------------------------------
 
     analysis = analyze_resume(
         resume,
         job["description"],
-        required_skills
+        job["required_skills"]
     )
 
     # --------------------------------------------------------
@@ -126,15 +124,16 @@ def create_analysis():
 
     analysis["resume_id"] = resume_id
     analysis["job_id"] = job_id
+    analysis["user_id"] = request.user_id
 
     # --------------------------------------------------------
-    # Save analysis to MongoDB
+    # Save analysis
     # --------------------------------------------------------
 
     analysis_id = save_analysis(analysis)
 
     # --------------------------------------------------------
-    # Return response
+    # Response
     # --------------------------------------------------------
 
     return jsonify({
@@ -164,18 +163,46 @@ def create_analysis():
 
 
 # ============================================================
-# GET ALL ANALYSES FOR A RESUME
+# GET MY ANALYSIS HISTORY
 # ============================================================
 
 @analysis_bp.route(
     "/analysis/resume/<resume_id>",
     methods=["GET"]
 )
+@token_required
 def get_resume_analysis_history(resume_id):
+
+    # --------------------------------------------------------
+    # Check resume exists
+    # --------------------------------------------------------
+
+    resume = get_resume(resume_id)
+
+    if not resume:
+        return jsonify({
+            "error": "Resume not found"
+        }), 404
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if resume.get("user_id") != request.user_id:
+
+        return jsonify({
+            "error": "You are not authorized to access this resume"
+        }), 403
+
+    # --------------------------------------------------------
+    # Get analyses
+    # --------------------------------------------------------
 
     analyses = get_analyses_by_resume(resume_id)
 
     return jsonify({
+
+        "user_id": request.user_id,
 
         "resume_id": resume_id,
 
@@ -194,7 +221,12 @@ def get_resume_analysis_history(resume_id):
     "/analysis/<analysis_id>",
     methods=["GET"]
 )
+@token_required
 def get_single_analysis(analysis_id):
+
+    # --------------------------------------------------------
+    # Get analysis
+    # --------------------------------------------------------
 
     analysis = get_analysis(analysis_id)
 
@@ -202,6 +234,20 @@ def get_single_analysis(analysis_id):
         return jsonify({
             "error": "Analysis not found"
         }), 404
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if analysis.get("user_id") != request.user_id:
+
+        return jsonify({
+            "error": "You are not authorized to access this analysis"
+        }), 403
+
+    # --------------------------------------------------------
+    # Return analysis
+    # --------------------------------------------------------
 
     return jsonify({
 

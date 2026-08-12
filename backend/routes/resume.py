@@ -1,18 +1,44 @@
 from flask import Blueprint, request, jsonify
+
 from werkzeug.utils import secure_filename
+
 from services.pdf_service import extract_text_from_pdf
-from services.resume_parser import parse_resume
-from database.resume_repository import save_resume
+
+from database.resume_repository import (
+    save_resume,
+    get_resume,
+    get_resumes_by_user
+)
+
+from utils.auth import token_required
+
 import os
 
+
+# ============================================================
+# BLUEPRINT
+# ============================================================
 
 resume_bp = Blueprint("resume", __name__)
 
 
+# ============================================================
+# UPLOAD FOLDER
+# ============================================================
+
 UPLOAD_FOLDER = "uploads"
+
+
+# ============================================================
+# ALLOWED EXTENSIONS
+# ============================================================
 
 ALLOWED_EXTENSIONS = {"pdf"}
 
+
+# ============================================================
+# CHECK FILE EXTENSION
+# ============================================================
 
 def allowed_file(filename):
 
@@ -23,12 +49,23 @@ def allowed_file(filename):
     )
 
 
+# ============================================================
+# UPLOAD RESUME
+# ============================================================
+
 @resume_bp.route("/resumes/upload", methods=["POST"])
+@token_required
 def upload_resume():
 
-    # ---------------------------------------
-    # 1. Check whether a file was provided
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Get logged-in user's ID from JWT
+    # --------------------------------------------------------
+
+    user_id = request.user_id
+
+    # --------------------------------------------------------
+    # Check whether file was provided
+    # --------------------------------------------------------
 
     if "resume" not in request.files:
 
@@ -36,13 +73,11 @@ def upload_resume():
             "error": "No resume file provided"
         }), 400
 
-
     file = request.files["resume"]
 
-
-    # ---------------------------------------
-    # 2. Check whether a file was selected
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Check whether file was selected
+    # --------------------------------------------------------
 
     if file.filename == "":
 
@@ -50,10 +85,9 @@ def upload_resume():
             "error": "No file selected"
         }), 400
 
-
-    # ---------------------------------------
-    # 3. Check file type
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Check file type
+    # --------------------------------------------------------
 
     if not allowed_file(file.filename):
 
@@ -61,68 +95,68 @@ def upload_resume():
             "error": "Only PDF files are allowed"
         }), 400
 
-
-    # ---------------------------------------
-    # 4. Make filename safe
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Make filename safe
+    # --------------------------------------------------------
 
     filename = secure_filename(file.filename)
 
+    # --------------------------------------------------------
+    # Create upload folder
+    # --------------------------------------------------------
 
-    # ---------------------------------------
-    # 5. Create upload folder
-    # ---------------------------------------
+    os.makedirs(
+        UPLOAD_FOLDER,
+        exist_ok=True
+    )
 
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-
-    # ---------------------------------------
-    # 6. Create file path
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Create file path
+    # --------------------------------------------------------
 
     file_path = os.path.join(
         UPLOAD_FOLDER,
         filename
     )
 
-
-    # ---------------------------------------
-    # 7. Save PDF
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Save PDF
+    # --------------------------------------------------------
 
     file.save(file_path)
 
-
-    # ---------------------------------------
-    # 8. Extract text
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Extract text from PDF
+    # --------------------------------------------------------
 
     extracted_text = extract_text_from_pdf(
         file_path
     )
 
+    # --------------------------------------------------------
+    # Create resume document
+    # --------------------------------------------------------
 
-    # ---------------------------------------
-    # 9. Parse resume
-    # ---------------------------------------
+    resume_data = {
 
-    parsed_resume = parse_resume(
-        extracted_text
-    )
+        "user_id": user_id,
 
+        "filename": filename,
 
-    # ---------------------------------------
-    # 10. Save resume to MongoDB
-    # ---------------------------------------
+        "text": extracted_text
+    }
+
+    # --------------------------------------------------------
+    # Save resume to MongoDB
+    # --------------------------------------------------------
 
     resume_id = save_resume(
-        parsed_resume
+        resume_data
     )
 
-
-    # ---------------------------------------
-    # 11. Return response
-    # ---------------------------------------
+    # --------------------------------------------------------
+    # Return response
+    # --------------------------------------------------------
 
     return jsonify({
 
@@ -132,7 +166,107 @@ def upload_resume():
         "resume_id":
             resume_id,
 
+        "user_id":
+            user_id,
+
         "filename":
             filename,
 
+        "text":
+            extracted_text
+
     }), 201
+
+
+# ============================================================
+# GET MY RESUMES
+# ============================================================
+
+@resume_bp.route("/resumes/my", methods=["GET"])
+@token_required
+def get_my_resumes():
+
+    # --------------------------------------------------------
+    # Get logged-in user's ID from JWT
+    # --------------------------------------------------------
+
+    user_id = request.user_id
+
+    # --------------------------------------------------------
+    # Get resumes belonging to this user
+    # --------------------------------------------------------
+
+    resumes = get_resumes_by_user(
+        user_id
+    )
+
+    # --------------------------------------------------------
+    # Return resumes
+    # --------------------------------------------------------
+
+    return jsonify({
+
+        "user_id":
+            user_id,
+
+        "total_resumes":
+            len(resumes),
+
+        "resumes":
+            resumes
+
+    }), 200
+
+
+# ============================================================
+# GET ONE RESUME
+# ============================================================
+
+@resume_bp.route("/resumes/<resume_id>", methods=["GET"])
+@token_required
+def get_single_resume(resume_id):
+
+    # --------------------------------------------------------
+    # Get logged-in user's ID from JWT
+    # --------------------------------------------------------
+
+    user_id = request.user_id
+
+    # --------------------------------------------------------
+    # Get resume
+    # --------------------------------------------------------
+
+    resume = get_resume(
+        resume_id
+    )
+
+    if not resume:
+
+        return jsonify({
+            "error": "Resume not found"
+        }), 404
+
+    # --------------------------------------------------------
+    # Check ownership
+    # --------------------------------------------------------
+
+    if resume.get("user_id") != user_id:
+
+        return jsonify({
+            "error":
+                "You are not authorized to access this resume"
+        }), 403
+
+    # --------------------------------------------------------
+    # Return resume
+    # --------------------------------------------------------
+
+    return jsonify({
+
+        "message":
+            "Resume retrieved successfully",
+
+        "resume":
+            resume
+
+    }), 200

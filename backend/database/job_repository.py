@@ -1,6 +1,8 @@
 from database.db import db
 from bson import ObjectId
 
+jobs_collection = db["jobs"]
+
 
 # ============================================================
 # SAVE JOB
@@ -8,9 +10,7 @@ from bson import ObjectId
 
 def save_job(job_data):
 
-    collection = db["jobs"]
-
-    result = collection.insert_one(job_data)
+    result = jobs_collection.insert_one(job_data)
 
     return str(result.inserted_id)
 
@@ -21,14 +21,17 @@ def save_job(job_data):
 
 def get_job(job_id):
 
-    collection = db["jobs"]
+    try:
+        job = jobs_collection.find_one({
+            "_id": ObjectId(job_id)
+        })
+    except Exception:
+        return None
 
-    job = collection.find_one({
-        "_id": ObjectId(job_id)
-    })
+    if not job:
+        return None
 
-    if job:
-        job["_id"] = str(job["_id"])
+    job["_id"] = str(job["_id"])
 
     return job
 
@@ -39,16 +42,29 @@ def get_job(job_id):
 
 def get_all_jobs():
 
-    collection = db["jobs"]
-
-    jobs = collection.find()
-
-    result = []
+    jobs = list(
+        jobs_collection.find()
+    )
 
     for job in jobs:
-
         job["_id"] = str(job["_id"])
 
-        result.append(job)
+    return jobs
 
-    return result
+
+# ============================================================
+# GET JOBS BY USER
+# ============================================================
+
+def get_jobs_by_user(user_id):
+
+    jobs = list(
+        jobs_collection.find({
+            "user_id": user_id
+        })
+    )
+
+    for job in jobs:
+        job["_id"] = str(job["_id"])
+
+    return jobs
