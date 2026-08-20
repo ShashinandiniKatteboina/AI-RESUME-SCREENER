@@ -5,6 +5,7 @@ from werkzeug.security import (
     check_password_hash
 )
 
+
 # ============================================================
 # USERS COLLECTION
 # ============================================================
@@ -20,21 +21,53 @@ def create_user(user_data):
 
     password = user_data.get("password")
 
+    # --------------------------------------------------------
+    # Hash password
+    # --------------------------------------------------------
+
     hashed_password = generate_password_hash(
         password
     )
 
+    # --------------------------------------------------------
+    # Get role
+    # --------------------------------------------------------
+
+    role = user_data.get(
+        "role",
+        "candidate"
+    )
+
+    # --------------------------------------------------------
+    # Create user document
+    # --------------------------------------------------------
+
     user_document = {
-        "name": user_data.get("name"),
-        "email": user_data.get("email"),
-        "password": hashed_password
+
+        "name":
+            user_data.get("name"),
+
+        "email":
+            user_data.get("email"),
+
+        "password":
+            hashed_password,
+
+        "role":
+            role
     }
+
+    # --------------------------------------------------------
+    # Insert into MongoDB
+    # --------------------------------------------------------
 
     result = users_collection.insert_one(
         user_document
     )
 
-    return str(result.inserted_id)
+    return str(
+        result.inserted_id
+    )
 
 
 # ============================================================
@@ -53,7 +86,10 @@ def get_all_users():
     )
 
     for user in users:
-        user["_id"] = str(user["_id"])
+
+        user["_id"] = str(
+            user["_id"]
+        )
 
     return users
 
@@ -65,7 +101,10 @@ def get_all_users():
 def get_user_by_email(email):
 
     user = users_collection.find_one({
-        "email": email
+
+        "email":
+            email
+
     })
 
     return user
@@ -81,6 +120,9 @@ def verify_password(
 ):
 
     return check_password_hash(
+
         stored_password,
+
         entered_password
+
     )
