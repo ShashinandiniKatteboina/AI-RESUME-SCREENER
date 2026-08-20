@@ -1,6 +1,4 @@
-
 from database.db import db
-
 from bson import ObjectId
 
 
@@ -17,8 +15,29 @@ jobs_collection = db["jobs"]
 
 def create_job(job_data):
 
+    job_document = {
+
+        "user_id":
+            job_data.get("user_id"),
+
+        "title":
+            job_data.get("title"),
+
+        "company":
+            job_data.get("company"),
+
+        "description":
+            job_data.get("description"),
+
+        "required_skills":
+            job_data.get(
+                "required_skills",
+                []
+            )
+    }
+
     result = jobs_collection.insert_one(
-        job_data
+        job_document
     )
 
     return str(
@@ -42,13 +61,11 @@ def get_job(job_id):
 
         return None
 
-    if not job:
+    if job:
 
-        return None
-
-    job["_id"] = str(
-        job["_id"]
-    )
+        job["_id"] = str(
+            job["_id"]
+        )
 
     return job
 
@@ -97,20 +114,39 @@ def get_jobs_by_user(user_id):
 # UPDATE JOB
 # ============================================================
 
-def update_job(job_id, update_data):
+def update_job(job_id, job_data):
 
     try:
+
+        update_fields = {}
+
+        if "title" in job_data:
+            update_fields["title"] = job_data["title"]
+
+        if "company" in job_data:
+            update_fields["company"] = job_data["company"]
+
+        if "description" in job_data:
+            update_fields["description"] = job_data["description"]
+
+        if "required_skills" in job_data:
+            update_fields["required_skills"] = job_data[
+                "required_skills"
+            ]
+
+        if not update_fields:
+            return False
 
         result = jobs_collection.update_one(
             {
                 "_id": ObjectId(job_id)
             },
             {
-                "$set": update_data
+                "$set": update_fields
             }
         )
 
-        return result.modified_count > 0
+        return result.modified_count > 0 or result.matched_count > 0
 
     except Exception:
 

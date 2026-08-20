@@ -1,6 +1,4 @@
-
 from database.db import db
-
 from bson import ObjectId
 
 
@@ -17,8 +15,26 @@ resumes_collection = db["resumes"]
 
 def save_resume(resume_data):
 
+    resume_document = {
+
+        "user_id":
+            resume_data.get("user_id"),
+
+        "filename":
+            resume_data.get("filename"),
+
+        "text":
+            resume_data.get("text"),
+
+        "parsed_resume":
+            resume_data.get(
+                "parsed_resume",
+                {}
+            )
+    }
+
     result = resumes_collection.insert_one(
-        resume_data
+        resume_document
     )
 
     return str(
@@ -42,13 +58,11 @@ def get_resume(resume_id):
 
         return None
 
-    if not resume:
+    if resume:
 
-        return None
-
-    resume["_id"] = str(
-        resume["_id"]
-    )
+        resume["_id"] = str(
+            resume["_id"]
+        )
 
     return resume
 

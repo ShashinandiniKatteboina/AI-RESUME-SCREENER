@@ -1,4 +1,3 @@
-
 from flask import Blueprint, request, jsonify
 
 from database.analysis_repository import (
@@ -153,7 +152,18 @@ def analyze_resume():
     ai_analysis = generate_ai_analysis(
         resume,
         job,
-        match_result
+        match_result.get(
+            "match_score",
+            0
+        ),
+        match_result.get(
+            "matched_skills",
+            []
+        ),
+        match_result.get(
+            "missing_skills",
+            []
+        )
     )
 
     # --------------------------------------------------------
@@ -162,11 +172,14 @@ def analyze_resume():
 
     analysis_data = {
 
-        "user_id": user_id,
+        "user_id":
+            user_id,
 
-        "resume_id": resume_id,
+        "resume_id":
+            resume_id,
 
-        "job_id": job_id,
+        "job_id":
+            job_id,
 
         "job_description":
             job.get(

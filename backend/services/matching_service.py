@@ -1,239 +1,321 @@
 # ============================================================
+# MATCHING SERVICE
+# ============================================================
+
+
+# ============================================================
 # NORMALIZE SKILL
 # ============================================================
 
 def normalize_skill(skill):
 
+    if not isinstance(skill, str):
+        return ""
+
     skill = skill.lower().strip()
 
     aliases = {
+        "js": "javascript",
+        "java script": "javascript",
+
+        "ts": "typescript",
+        "type script": "typescript",
+
         "node js": "node.js",
         "nodejs": "node.js",
 
         "express": "express.js",
-
-        "postgres": "postgresql",
-        "postgre sql": "postgresql",
+        "expressjs": "express.js",
 
         "mongo": "mongodb",
+        "mongo db": "mongodb",
 
-        "js": "javascript",
+        "postgres": "postgresql",
+        "postgre": "postgresql",
+        "postgre sql": "postgresql",
 
-        "ts": "typescript",
+        "my sql": "mysql",
 
-        "rest api": "rest api",
+        "dsa": "data structures",
+        "data structure": "data structures",
+
+        "algo": "algorithms",
+
         "rest apis": "rest api",
         "restful api": "rest api",
         "restful apis": "rest api",
 
-        "dsa": "data structures",
-        "data structures and algorithms": "data structures"
+        "ml": "machine learning",
+
+        "ai": "artificial intelligence"
     }
 
-    return aliases.get(skill, skill)
+    return aliases.get(
+        skill,
+        skill
+    )
 
 
 # ============================================================
-# GET RESUME SKILLS
+# GET SKILLS FROM RESUME
 # ============================================================
 
 def get_resume_skills(resume):
 
     skills = []
 
+    # --------------------------------------------------------
+    # Get parsed resume
+    # --------------------------------------------------------
+
+    parsed_resume = resume.get(
+        "parsed_resume",
+        {}
+    )
+
+    if not isinstance(
+        parsed_resume,
+        dict
+    ):
+        return skills
+
     # ========================================================
-    # 1. Skills from structured SKILLS section
+    # SKILLS SECTION
     # ========================================================
 
-    resume_skills = resume.get("skills", {})
+    resume_skills = parsed_resume.get(
+        "skills",
+        {}
+    )
 
-    if isinstance(resume_skills, dict):
+    if isinstance(
+        resume_skills,
+        dict
+    ):
 
         for category_skills in resume_skills.values():
 
-            if isinstance(category_skills, list):
-                skills.extend(category_skills)
+            if isinstance(
+                category_skills,
+                list
+            ):
 
-    elif isinstance(resume_skills, list):
+                for skill in category_skills:
 
-        skills.extend(resume_skills)
+                    if isinstance(
+                        skill,
+                        str
+                    ):
+
+                        skills.append(
+                            skill.strip()
+                        )
 
     # ========================================================
-    # 2. Skills from PROJECTS
+    # PROJECT TECH STACK
     # ========================================================
 
-    projects = resume.get("projects", [])
+    projects = parsed_resume.get(
+        "projects",
+        []
+    )
 
-    if isinstance(projects, list):
+    if isinstance(
+        projects,
+        list
+    ):
 
         for project in projects:
 
-            if isinstance(project, dict):
+            if not isinstance(
+                project,
+                dict
+            ):
+                continue
 
-                tech_stack = project.get(
-                    "tech_stack",
-                    []
-                )
+            tech_stack = project.get(
+                "tech_stack",
+                []
+            )
 
-                if isinstance(tech_stack, list):
-                    skills.extend(tech_stack)
+            if isinstance(
+                tech_stack,
+                list
+            ):
+
+                for skill in tech_stack:
+
+                    if isinstance(
+                        skill,
+                        str
+                    ):
+
+                        skills.append(
+                            skill.strip()
+                        )
 
     # ========================================================
-    # 3. Skills from EXPERIENCE
+    # EXPERIENCE SKILLS
     # ========================================================
 
-    experience = resume.get("experience", [])
+    experience = parsed_resume.get(
+        "experience",
+        []
+    )
 
-    if isinstance(experience, list):
+    if isinstance(
+        experience,
+        list
+    ):
 
         for experience_item in experience:
 
-            if isinstance(experience_item, dict):
+            if not isinstance(
+                experience_item,
+                dict
+            ):
+                continue
 
-                experience_skills = experience_item.get(
-                    "skills",
-                    []
-                )
+            experience_skills = experience_item.get(
+                "skills",
+                []
+            )
 
-                if isinstance(experience_skills, list):
-                    skills.extend(experience_skills)
+            if isinstance(
+                experience_skills,
+                list
+            ):
+
+                for skill in experience_skills:
+
+                    if isinstance(
+                        skill,
+                        str
+                    ):
+
+                        skills.append(
+                            skill.strip()
+                        )
 
     # ========================================================
-    # 4. FALLBACK — EXTRACT SKILLS FROM RESUME TEXT
+    # REMOVE EMPTY VALUES
     # ========================================================
 
-    resume_text = resume.get("text", "")
+    skills = [
+        skill
+        for skill in skills
+        if skill
+    ]
 
-    if resume_text:
+    # ========================================================
+    # REMOVE DUPLICATES
+    # ========================================================
 
-        known_skills = [
-            "Java",
-            "Python",
-            "C",
-            "C++",
-            "SQL",
-            "JavaScript",
-            "TypeScript",
+    unique_skills = []
 
-            "HTML",
-            "CSS",
+    seen = set()
 
-            "Node.js",
-            "Node JS",
-            "Express.js",
-            "Express",
+    for skill in skills:
 
-            "React",
-            "Tailwind CSS",
+        normalized = normalize_skill(
+            skill
+        )
 
-            "MySQL",
-            "PostgreSQL",
-            "MongoDB",
+        if not normalized:
+            continue
 
-            "Git",
-            "GitHub",
-            "Docker",
-            "Kubernetes",
+        if normalized not in seen:
 
-            "AWS",
-            "Azure",
-            "GCP",
+            seen.add(
+                normalized
+            )
 
-            "REST API",
-            "REST APIs",
-            "RESTful API",
-            "RESTful APIs",
+            unique_skills.append(
+                skill
+            )
 
-            "Data Structures",
-            "Data Structures and Algorithms",
-
-            "OOP",
-            "Object-Oriented Programming",
-
-            "DBMS",
-            "Computer Networks",
-            "Operating Systems",
-
-            "Gemini API",
-            "Prompt Engineering",
-            "Resume Parsing"
-        ]
-
-        text_lower = resume_text.lower()
-
-        for skill in known_skills:
-
-            if skill.lower() in text_lower:
-
-                skills.append(skill)
-
-    return skills
+    return unique_skills
 
 
 # ============================================================
 # COMPARE SKILLS
 # ============================================================
 
-def compare_skills(resume, job_skills):
+def compare_skills(
+    resume,
+    job_skills
+):
 
-    resume_skills = get_resume_skills(resume)
+    # --------------------------------------------------------
+    # Resume skills
+    # --------------------------------------------------------
 
-    # ========================================================
+    resume_skills = get_resume_skills(
+        resume
+    )
+
+    # --------------------------------------------------------
     # Normalize resume skills
-    # ========================================================
+    # --------------------------------------------------------
 
-    resume_skill_set = {
+    normalized_resume_skills = {
+
         normalize_skill(skill)
+
         for skill in resume_skills
-    }
-
-    # ========================================================
-    # Normalize job skills
-    # ========================================================
-
-    job_skill_set = {
-        normalize_skill(skill)
-        for skill in job_skills
-    }
-
-    # ========================================================
-    # Find matched skills
-    # ========================================================
-
-    matched_skills = [
-
-        skill
-
-        for skill in job_skills
 
         if normalize_skill(skill)
-        in resume_skill_set
+    }
 
-    ]
+    # --------------------------------------------------------
+    # Matched skills
+    # --------------------------------------------------------
 
-    # ========================================================
-    # Find missing skills
-    # ========================================================
+    matched_skills = []
 
-    missing_skills = [
+    for job_skill in job_skills:
 
-        skill
+        normalized_job_skill = normalize_skill(
+            job_skill
+        )
 
-        for skill in job_skills
+        if normalized_job_skill in normalized_resume_skills:
 
-        if normalize_skill(skill)
-        not in resume_skill_set
+            matched_skills.append(
+                job_skill
+            )
 
-    ]
+    # --------------------------------------------------------
+    # Missing skills
+    # --------------------------------------------------------
+
+    missing_skills = []
+
+    for job_skill in job_skills:
+
+        normalized_job_skill = normalize_skill(
+            job_skill
+        )
+
+        if normalized_job_skill not in normalized_resume_skills:
+
+            missing_skills.append(
+                job_skill
+            )
 
     return {
+
+        "resume_skills":
+            resume_skills,
+
+        "job_skills":
+            job_skills,
 
         "matched_skills":
             matched_skills,
 
         "missing_skills":
             missing_skills
-
     }
 
 
@@ -247,14 +329,101 @@ def calculate_match_score(
 ):
 
     if not job_skills:
-        return 0
+
+        return 0.0
 
     score = (
         len(matched_skills)
-        / len(job_skills)
+        /
+        len(job_skills)
     ) * 100
 
-    return round(score, 2)
+    return round(
+        score,
+        2
+    )
+
+
+# ============================================================
+# ANALYZE SKILL GAP
+# ============================================================
+
+def analyze_skill_gap(
+    missing_skills
+):
+
+    technical_keywords = {
+
+        "java",
+        "python",
+        "c",
+        "c++",
+        "c#",
+
+        "javascript",
+        "typescript",
+
+        "html",
+        "css",
+        "react",
+
+        "node.js",
+        "express.js",
+
+        "mongodb",
+        "postgresql",
+        "mysql",
+        "sql",
+
+        "git",
+        "github",
+
+        "docker",
+        "kubernetes",
+
+        "aws",
+        "azure",
+        "gcp",
+
+        "rest api",
+
+        "data structures",
+        "algorithms",
+
+        "machine learning",
+        "artificial intelligence"
+    }
+
+    technical_skills = []
+
+    soft_skills = []
+
+    for skill in missing_skills:
+
+        normalized = normalize_skill(
+            skill
+        )
+
+        if normalized in technical_keywords:
+
+            technical_skills.append(
+                skill
+            )
+
+        else:
+
+            soft_skills.append(
+                skill
+            )
+
+    return {
+
+        "technical_skills":
+            technical_skills,
+
+        "soft_skills":
+            soft_skills
+    }
 
 
 # ============================================================
@@ -265,6 +434,38 @@ def generate_match_result(
     resume,
     job_skills
 ):
+
+    # --------------------------------------------------------
+    # Validate job skills
+    # --------------------------------------------------------
+
+    if not isinstance(
+        job_skills,
+        list
+    ):
+
+        job_skills = []
+
+    # --------------------------------------------------------
+    # Remove empty skills
+    # --------------------------------------------------------
+
+    job_skills = [
+
+        skill.strip()
+
+        for skill in job_skills
+
+        if isinstance(
+            skill,
+            str
+        )
+        and skill.strip()
+    ]
+
+    # --------------------------------------------------------
+    # Compare resume and job
+    # --------------------------------------------------------
 
     comparison = compare_skills(
         resume,
@@ -279,19 +480,35 @@ def generate_match_result(
         "missing_skills"
     ]
 
-    skill_gap = analyze_skill_gap(
-        missing_skills
-    )
+    resume_skills = comparison[
+        "resume_skills"
+    ]
 
-    score = calculate_match_score(
+    # --------------------------------------------------------
+    # Calculate score
+    # --------------------------------------------------------
+
+    match_score = calculate_match_score(
         job_skills,
         matched_skills
     )
 
+    # --------------------------------------------------------
+    # Analyze skill gap
+    # --------------------------------------------------------
+
+    skill_gap = analyze_skill_gap(
+        missing_skills
+    )
+
+    # --------------------------------------------------------
+    # Return result
+    # --------------------------------------------------------
+
     return {
 
         "match_score":
-            score,
+            match_score,
 
         "matched_skills":
             matched_skills,
@@ -302,6 +519,9 @@ def generate_match_result(
         "skill_gap":
             skill_gap,
 
+        "resume_skills":
+            resume_skills,
+
         "total_required_skills":
             len(job_skills),
 
@@ -310,78 +530,4 @@ def generate_match_result(
 
         "total_missing_skills":
             len(missing_skills)
-
-    }
-
-
-# ============================================================
-# ANALYZE SKILL GAP
-# ============================================================
-
-def analyze_skill_gap(missing_skills):
-
-    technical_keywords = {
-
-        "java",
-        "python",
-        "sql",
-        "c",
-        "c++",
-
-        "javascript",
-        "typescript",
-
-        "html",
-        "css",
-
-        "react",
-
-        "node.js",
-        "express.js",
-
-        "mongodb",
-        "postgresql",
-        "mysql",
-
-        "git",
-
-        "docker",
-        "kubernetes",
-
-        "aws",
-        "azure",
-        "gcp",
-
-        "rest api",
-
-        "data structures",
-        "algorithms"
-
-    }
-
-    technical = []
-    soft = []
-
-    for skill in missing_skills:
-
-        normalized = normalize_skill(
-            skill
-        )
-
-        if normalized in technical_keywords:
-
-            technical.append(skill)
-
-        else:
-
-            soft.append(skill)
-
-    return {
-
-        "technical_skills":
-            technical,
-
-        "soft_skills":
-            soft
-
     }
